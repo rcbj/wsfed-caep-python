@@ -25,12 +25,14 @@ docker build --target test .
 
 The `test` stage runs `pip install --no-cache-dir ".[dev]" && pytest` in `python:3.11-slim`. GitHub Actions uses that command. Do not run pytest on the host. The demo image does not run the suite.
 
-Pytest covers the stub IdP (a signed SAML assertion the library accepts), replay, metadata, the self-signed certificate, the SSF poll receiver, the setup script's plan, and the demo handler. No live iya-sts.
+Pytest covers the stub IdP (a signed SAML assertion the library accepts), replay, metadata, the self-signed certificate, the SSF poll receiver, the setup script's plan, and the demo handler. Those tests do not start iya-sts.
+
+`python3 scripts/live_iya_sts.py` signs the demo in to iya-sts and checks credential-change and session-revoked on `GET /live-status`. The nightly workflow runs the unit suite and that script once every 24 hours. Neither binds port 3000 or 8081.
 
 ## Layout
 
-`src/wsfed_caep/` library (`ssf/` is the poll receiver). `tests/` pytest. `demo/app.py` stdlib server. `scripts/configure_iya_sts.py` registers the demo with iya-sts; the container `PORT` wins over the shell `PORT`. `Dockerfile` and comment-free `docker-compose.yml` use `network_mode: host`, `ENV PORT=3000`, and a health check of `http://127.0.0.1:${PORT}/healthz`.
+`src/wsfed_caep/` library (`ssf/` is the poll receiver). `tests/` pytest. `demo/app.py` stdlib server. `scripts/configure_iya_sts.py` registers the demo with iya-sts; the container `PORT` wins over the shell `PORT`. `scripts/live_iya_sts.py` is the live sign-in. `.github/workflows/nightly.yml` runs the unit suite and that script once every 24 hours. `Dockerfile` and comment-free `docker-compose.yml` use `network_mode: host`, `ENV PORT=3000`, and a health check of `http://127.0.0.1:${PORT}/healthz`. The live script never binds 3000 or 8081.
 
 ## Demo
 
-`PORT` defaults to 3000. Loopback realm and reply URLs follow the running port. Other hosts stay as written. `PUBLIC_URL` or `--public-url` replaces the origin and keeps the path. `GET /healthz` returns `200` and `ok`. The page links to `/login`, which redirects with `wa=wsignin1.0`, `wtrealm`, `wreply`, and `wctx`. The reply URL handles the POST and sign-out cleanup. `POST /logout` signs out. Demo JSON uses `file:` placeholders. Do not commit `demo/generated`.
+`PORT` defaults to 3000. Loopback realm and reply URLs follow the running port. Other hosts stay as written. `PUBLIC_URL` or `--public-url` replaces the origin and keeps the path. `GET /healthz` returns `200` and `ok`. The page links to `/login`, which redirects with `wa=wsignin1.0`, `wtrealm`, `wreply`, and `wctx`. The reply URL handles the POST and sign-out cleanup. `POST /logout` signs out. `GET /live-status` is JSON: `signedIn`, `subject`, the receiver state, and accepted Shared Signals events (`type` and `jti` only). Demo JSON uses `file:` placeholders. Do not commit `demo/generated`.

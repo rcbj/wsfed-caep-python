@@ -5,7 +5,8 @@
 
 GET /healthz is 200 ok before the identity provider is reachable. GET /login redirects with
 wa=wsignin1.0. POST at the reply URL accepts the sign-in. GET there with wsignoutcleanup1.0
-is a GIF. POST /logout signs out here and at the identity provider.
+is a GIF. POST /logout signs out here and at the identity provider. GET /live-status is JSON:
+whether this process is signed in, and the Shared Signals events it has accepted.
 
 A loopback realm and reply URL follow PORT. PUBLIC_URL or --public-url replaces the origin and
 keeps the path. The default http://localhost:3000 is not an explicit public URL.
@@ -76,6 +77,8 @@ class App:
         self.rp = rp
         self.receiver = receiver
         self.sessions: dict[str, object] = {}
+        self.events: list[dict] = []
+        self.receiver_state = "not configured"
         self.secret = secrets.token_bytes(32)
         reply = urlsplit(rp.config.reply_url)
         self.reply_path = reply.path or "/wsfed"
@@ -93,6 +96,9 @@ class App:
 
         if path == "/healthz" and method == "GET":
             return 200, [("content-type", "text/plain")], b"ok"
+
+        if path == "/live-status" and method == "GET":
+            return self._live_status(sid)
 
         if path == "/login" and method == "GET":
             request = self.rp.login(relay_state="/")
@@ -159,6 +165,21 @@ class App:
             return 200, [("content-type", "text/css")], css
 
         return 404, [("content-type", "text/plain")], b"Not found"
+
+    def _remember(self, event) -> None:
+        self.events.append({"type": getattr(event, "type", None), "jti": getattr(event, "jti", None)})
+
+    def _live_status(self, sid: str | None):
+        who = self.sessions.get(sid) if sid else None
+        subject = getattr(who, "name_id", None) if who is not None else None
+        body = {
+            "signedIn": who is not None,
+            "subject": None if subject is None else str(subject),
+            "receiver": self.receiver_state,
+            "events": [{"type": item.get("type"), "jti": item.get("jti")} for item in self.events],
+        }
+        raw = json.dumps(body).encode()
+        return 200, [("content-type", "application/json"), ("cache-control", "no-store")], raw
 
 
 def _public_url(argv: list[str]) -> tuple[str, bool]:
@@ -260,7 +281,13 @@ def main(argv: list[str] | None = None) -> None:
         rp, raw = load_party(config_path, port, public, given)
         app = App(rp, None)
         ssf = raw.get("ssf") if isinstance(raw.get("ssf"), dict) else None
-        if raw.get("signals") is not False and ssf and ssf.get("transmitter") and getattr(rp.config, "private_key", None):
+        if raw.get("signals") is False:
+            app.receiver_state = "not configured (signals are off)"
+        elif not (ssf and ssf.get("transmitter")):
+            app.receiver_state = "not configured (no ssf block in the configuration file)"
+        elif not getattr(rp.config, "private_key", None):
+            app.receiver_state = "not running: the relying party has no private key"
+        else:
             from cryptography.hazmat.primitives import serialization
 
             def end(ids, _event):
@@ -275,10 +302,14 @@ def main(argv: list[str] | None = None) -> None:
                 serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
             ).decode()
             receiver = SignalsReceiver(ssf["transmitter"], end, tls=tls, poll_interval_ms=int(ssf.get("pollIntervalMs") or 5000))
+            receiver.on("*", app._remember)
             try:
                 receiver.start()
                 app.receiver = receiver
+                stream_id = (receiver.stream or {}).get("stream_id")
+                app.receiver_state = f"polling stream {stream_id} at {ssf['transmitter']}"
             except Exception as err:
+                app.receiver_state = f"not running: {err}"
                 print(f"ssf: not started: {err}", flush=True)
         holder["app"] = app
         return app
