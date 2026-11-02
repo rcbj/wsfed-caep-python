@@ -5,7 +5,7 @@ SPDX-License-Identifier: MIT
 
 # wsfed-caep
 
-Python port of the server-side WS-Federation relying party. Import `wsfed_caep`. Distribution name `wsfed-caep`. Version 0.1.0. License MIT (`LICENSE`). A pull request merged into `main` publishes the package to PyPI after the test workflow succeeds on that commit. A direct push does not. There is no API token: PyPI Trusted Publishing trades the workflow's GitHub OIDC token for a short-lived upload token, from the `pypi` environment, and PyPI holds the publisher for this repository and `publish.yml`. A version already on PyPI stays there; the next release is a new `version` in `pyproject.toml` (and `VERSION`). When this tree is published, `develop` and `main` are the same commit.
+Python port of the server-side WS-Federation relying party. Import `wsfed_caep`. Distribution name `wsfed-caep`. Version 0.1.1. License MIT (`LICENSE`). A pull request merged into `main` publishes the package to PyPI after the test workflow succeeds on that commit. A direct push does not. There is no API token: PyPI Trusted Publishing trades the workflow's GitHub OIDC token for a short-lived upload token, from the `pypi` environment, and PyPI holds the publisher for this repository and `publish.yml`. A version already on PyPI stays there; the next release is a new `version` in `pyproject.toml` (and `VERSION`). When this tree is published, `develop` and `main` are the same commit.
 
 ## Usage
 
@@ -16,6 +16,8 @@ The party accepts SAML 2.0 assertions with bearer confirmation `urn:oasis:names:
 ## signals
 
 Omitted or `true` means on. The resolved configuration omits `signals` in that case. `false` does not start the receiver and does not require transmitter metadata. The relying party never starts the receiver itself; `SignalsReceiver` is separate. Sign-in does not change when signals are off, because WS-Federation does not send OAuth scopes. A non-boolean raises a config error: `signals must be true or false`. The shipped demo omits the key.
+
+**Plain http (#13).** `send()` in `src/wsfed_caep/http_client.py` is the one place every fetch goes through (metadata URL, SSF configuration, JWKS, stream and poll). It refuses a URL with whitespace or a control character, and plain `http://` to a host that is not loopback (`127.0.0.0/8`, `::1`, `localhost`, by `is_loopback_host()` on the urlsplit hostname), before any lookup or connection, keeping the fetch's `WsFedError` code and naming only `http://host[:port]`; userinfo is never loopback. `http.client` follows no redirect, so there is no redirect target to check. No opt-out. `tests/test_plain_http.py` covers it; `http://0.0.0.0:<port>` reaches a 127.0.0.1 listener on Linux, so its tripwire listener proves no connection is opened.
 
 ## Tests
 

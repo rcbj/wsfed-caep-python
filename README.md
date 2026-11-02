@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT
 
 Server-side WS-Federation relying party for Python. It accepts SAML 2.0 bearer assertions, reads identity-provider federation metadata, writes relying-party metadata, verifies XML signatures, decrypts encrypted assertions, and remembers assertion ids so a bearer token cannot be replayed. A Shared Signals poll receiver for CAEP and RISC is included. The relying party does not start that receiver.
 
-Version 0.1.0. License: MIT. A pull request merged into `main` publishes the package to PyPI after the test workflow succeeds on that commit. A direct push does not. There is no API token: PyPI Trusted Publishing trades the workflow's GitHub OIDC token for a short-lived upload token, from the `pypi` environment, and PyPI holds the publisher for this repository and `publish.yml`. A version already on PyPI stays there; the next release is a new `version` in `pyproject.toml` (and `VERSION`). `develop` and `main` are the same commit when this tree is published; nothing here creates a remote.
+Version 0.1.1. License: MIT. A pull request merged into `main` publishes the package to PyPI after the test workflow succeeds on that commit. A direct push does not. There is no API token: PyPI Trusted Publishing trades the workflow's GitHub OIDC token for a short-lived upload token, from the `pypi` environment, and PyPI holds the publisher for this repository and `publish.yml`. A version already on PyPI stays there; the next release is a new `version` in `pyproject.toml` (and `VERSION`). `develop` and `main` are the same commit when this tree is published; nothing here creates a remote.
 
 ## Usage
 
@@ -36,6 +36,8 @@ docker run --rm --user "$(id -u):$(id -g)" \
 ```
 
 The generated certificate's common name defaults to `wsfed-caep-nodejs relying party` plus the realm, cut at 64 characters.
+
+**Plain http (#13).** Federation metadata from a URL and every Shared Signals transmitter call (configuration, JWKS, stream and poll) use https. A plain `http://` URL is refused before any connection unless its host is loopback (`127.0.0.0/8`, `::1`, `localhost`), because metadata carries the signing keys and Shared Signals carry SETs and the bearer token. A URL with userinfo is never loopback, and a URL with whitespace or a control character is refused. The `WsFedError` keeps the fetch's code (`metadata`, `ssf`) and names the scheme and host only. There is no opt-out. The relying party's own realm and reply URL may stay http; they are never fetched.
 
 ## Tests
 
