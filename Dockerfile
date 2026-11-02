@@ -16,6 +16,15 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 RUN pip install --no-cache-dir .
+# The demo, and with it idpCa's file: demo/generated/idp-ca.pem, the iya-sts
+# listener CA trust chain scripts/configure_iya_sts.py saved. The image trusts
+# that iya-sts with no bind mount and no fetch. Rebuild after running the
+# install script against a different iya-sts.
+# .dockerignore admits that one file from demo/generated (never the relying
+# party's key, certificate or the IdP metadata). A COPY of the demo DIRECTORY
+# succeeds with or without it, so a fresh clone and CI still build; naming the
+# file, or a glob that matches nothing, fails the build in both builders. It
+# comes after the install, so a new chain does not reinstall the library.
 COPY demo ./demo
 COPY scripts ./scripts
 ENV PORT=3000

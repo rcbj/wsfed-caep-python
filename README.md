@@ -47,17 +47,28 @@ The suite runs in a container.
 
 The suite includes a stub identity provider. Those tests do not start iya-sts.
 
-`python3 scripts/live_iya_sts.py` is the live half. It builds this demo image, uses iya-sts (the latest main branch, in memory mode, when `IYA_STS_URL` is unset), registers the demo, signs in through `GET /login`, and requires a credential-change event and a session-revoked event on `GET /live-status`. The second event ends the local session. It uses the host's Python and Docker and does not import this library. It binds high ports and never binds 3000 or 8081. The nightly workflow runs the unit suite and this script once every 24 hours.
+`python3 scripts/live_iya_sts.py` is the live half. It uses iya-sts (the latest main branch, in memory mode with persistence and clustering off, when `IYA_STS_URL` is unset; `IYA_STS_IMAGE` starts a fresh container from an image), copies this checkout to a scratch build context, builds the demo image, runs the install script inside it (which registers the demo, generates the key pair and writes the `idpCa` chain), then builds the demo image again so it carries the chain, checks the image holds the chain and no key, starts the demo with no CA mount, signs in through `GET /login`, and requires a credential-change event and a session-revoked event on `GET /live-status`. The second event ends the local session. It uses the host's Python and Docker and does not import this library. It uses two high ports (defaults 18556 and 18656, `LIVE_STS_PORT` and `LIVE_DEMO_PORT`) and never binds 3000, 8081 or 18481-18495. No secret appears on a docker command line, and sign-in requests are logged by fixed labels, not URLs. The nightly workflow (06:35 UTC) runs the unit suite and this script once every 24 hours.
 
 ## Layout
 
 - `src/wsfed_caep/` library
 - `tests/` pytest, fixtures, stub identity provider
 - `demo/app.py` stdlib HTTP demo
-- `scripts/configure_iya_sts.py` registration plan for iya-sts
+- `scripts/configure_iya_sts.py` registers the demo with iya-sts and writes the listener CA trust chain to the file `idpCa` names
+- `scripts/trust_chain.py` holds `save_trust_chain()` and refreshes that file
 - `scripts/live_iya_sts.py` live sign-in against iya-sts
 - `.github/workflows/nightly.yml` unit suite and live script, once every 24 hours
 - `Dockerfile`, `docker-compose.yml` (`network_mode: host`, `PORT=3000`)
+
+## The iya-sts trust chain (`idpCa`)
+
+`idpCa` in `demo/wsfed.json` names the iya-sts TLS listener CA trust chain the library trusts for the IdP metadata URL and the Shared Signals transmitter. The default is `file:generated/idp-ca.pem`, relative to `demo/`. The value may also be a plain path, `env:<NAME>`, or the PEM itself. The library loads every certificate in it as a trust anchor (`ssl` `load_verify_locations(cadata=...)`), so the whole chain works and OpenSSL ends the path at the self-signed Root. The presented leaf must still verify to one of those anchors (a forged leaf followed by the real CA certificates is refused), and the host name is checked against the leaf's subject alternative names (a DNS name, or an IP literal such as `127.0.0.1`).
+
+`scripts/configure_iya_sts.py`, the install script, writes that file on every run (`scripts/trust_chain.py`, `save_trust_chain()`). It saves the whole chain iya-sts publishes at `GET /tls/server-certificate` (leaf, TLS Issuing CA, Intermediate, Root), or the chain from the TLS handshake when that path does not answer. It prints the path, the trust anchor's subject and its SHA-256 fingerprint. Compare the anchor with the Root CA on iya-sts's PKI page. A password iya-sts generates for the test user is never printed: it goes to `demo/generated/<user>.password`, mode 0600.
+
+The demo image build copies that file into the image at `/app/demo/generated/idp-ca.pem`, so the image trusts that iya-sts with no bind mount and no fetch. Run the install script before you build the image, and rebuild the image after running the install script against a different iya-sts. `.dockerignore` admits only that file from `demo/generated`: the relying party's key, certificate and the IdP metadata stay out of the image (compose still mounts `demo/generated` read-only for them). A build with no chain file yet (a fresh clone, CI) still succeeds; the image then has no `idpCa` file.
+
+The mechanism is `COPY demo ./demo` plus `.dockerignore`'s `demo/generated/*` and `!demo/generated/idp-ca.pem`. Do not replace it with a COPY that names the file or globs for it: when the file is absent, both BuildKit and the classic builder fail. A directory COPY of `demo/` (which always exists) succeeds in both. `python scripts/trust_chain.py --config demo/wsfed.json --idp <iya-sts URL>` refreshes the file by hand.
 
 ## Demo
 
