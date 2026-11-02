@@ -424,6 +424,32 @@ def _mint(origin: str, base: str, ca: str | None, secret: str) -> str:
     return reply["body"]["access_token"]
 
 
+def generated_file(directory, username):
+    """The file a generated test-user password is written to: <directory>/<username>.password.
+
+    Computed apart from the password, so the path the script prints is not derived from it.
+    """
+    if not username or "/" in username or "\\" in username or username in (".", ".."):
+        raise ValueError(f"{username!r} cannot name a file")
+    return Path(directory) / f"{username}.password"
+
+
+def write_private(path, text):
+    """Write text to path, readable and writable by its owner only (0600).
+
+    The file is created 0600, so it is never readable by anyone else, not even for a moment;
+    an existing file is narrowed to 0600 before it is rewritten. A generated password goes
+    here and is never printed: a password does not belong in a log. demo/generated, beside
+    the client key, never enters an image.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as out:
+        os.fchmod(out.fileno(), 0o600)
+        out.write(text + "\n")
+
+
 def _ensure_user(base: str, ca: str | None, token: str, username: str, api, generated: Path) -> None:
     found = _json(f"{base}/admin-api/users?user={urllib.parse.quote(username)}", ca, headers={"accept": "application/json", "authorization": f"Bearer {token}"})
     password = os.environ.get("WSFED_DEMO_USER_PASSWORD") or ""
@@ -445,11 +471,8 @@ def _ensure_user(base: str, ca: str | None, token: str, username: str, api, gene
             # Never printed: a password does not belong in a log. It goes to a file
             # only its owner can read, beside the key pair (demo/generated, which
             # never enters an image).
-            saved = generated / f"{username}.password"
-            saved.parent.mkdir(parents=True, exist_ok=True)
-            descriptor = os.open(saved, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(descriptor, "w", encoding="utf-8") as out:
-                out.write(made["body"]["password"] + "\n")
+            saved = generated_file(generated, username)
+            write_private(saved, made["body"]["password"])
             print(f"Generated a password for {username}; it is in {saved} (readable by you only).")
 
 
