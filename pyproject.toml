@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wsfed-caep"
-version = "0.1.0"
+version = "0.1.1"
 description = "Server-side WS-Federation relying party that accepts SAML 2.0 assertions, and a CAEP and RISC receiver."
 readme = "README.md"
 license = "MIT"
