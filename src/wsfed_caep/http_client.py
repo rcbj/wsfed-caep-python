@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Iya CyberSecurity Solutions, LLC
 # SPDX-License-Identifier: MIT
-"""Back channel: identity-provider metadata and the Shared Signals transmitter. TLS is verified."""
+"""Back channel: identity-provider metadata and the Shared Signals transmitter. TLS is verified.
+Plain http is refused unless the host is loopback. http.client follows no redirect."""
 
 from __future__ import annotations
 
 import http.client
+import ipaddress
 import socket
 import ssl
 import tempfile
@@ -17,12 +19,53 @@ MAX_BYTES = 2 * 1024 * 1024
 TIMEOUT_S = 15
 
 
+def is_loopback_host(host: str) -> bool:
+    """A loopback host: 127.0.0.0/8, ::1 or the name localhost. ``host`` is a urlsplit hostname."""
+    host = host.lower()
+    if host == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    if address.version == 4:
+        return address in ipaddress.ip_network("127.0.0.0/8")
+    return address == ipaddress.IPv6Address("::1")
+
+
+def _unsafe(url: str) -> bool:
+    """Whitespace or a control character anywhere: urlsplit drops some of them silently, and another
+    parser may read a different host from the same string, so such a URL is refused outright."""
+    return any(ord(c) <= 0x20 or ord(c) == 0x7F or c.isspace() for c in url)
+
+
+def plain_http_refusal(parsed: urllib.parse.SplitResult, code: str) -> WsFedError | None:
+    """The refusal of a plain http URL, unless it names a loopback host, where the bytes never leave
+    the machine. Userinfo is never loopback, so ``http://localhost:80@host/`` cannot pass as
+    localhost. The message names the scheme and host[:port] only: never userinfo, path or query."""
+    userinfo, at, shown = parsed.netloc.rpartition("@")
+    if not at and is_loopback_host(parsed.hostname or ""):
+        return None
+    return WsFedError(code, f"http://{shown} is refused: plain http is allowed only to a loopback host "
+                      "(127.0.0.0/8, ::1, localhost); use https")
+
+
 def send(url: str, init: dict | None, tls: dict | None, code: str) -> dict:
     init = init or {}
     tls = tls or {}
+    if _unsafe(url):
+        raise WsFedError(code, "the URL is refused: it contains whitespace or a control character")
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in ("https", "http"):
-        raise WsFedError(code, f"{url} is not an http(s) URL")
+        raise WsFedError(code, f"{parsed.scheme or 'a schemeless'} URL is not http(s)")
+    # Every fetch this library makes goes through here: the identity provider's federation metadata
+    # (its signing keys) and the Shared Signals transmitter (configuration, JWKS, stream and poll:
+    # SETs and the bearer token). None of them may travel in the clear off this machine, so plain
+    # http is refused before any lookup or connection unless the host is loopback.
+    if parsed.scheme == "http":
+        refusal = plain_http_refusal(parsed, code)
+        if refusal is not None:
+            raise refusal
     payload = None if init.get("body") is None else str(init["body"]).encode("utf-8")
     headers = {str(k): str(v) for k, v in (init.get("headers") or {}).items()}
     if payload is not None:
