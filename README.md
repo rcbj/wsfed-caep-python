@@ -24,20 +24,26 @@ JSON keys match the Node configuration: `realm`, `replyUrl`, `idpMetadata`, `pri
 `signals` omitted or `true` is on. The resolved configuration omits the key in that case. `false` is kept, does not start a receiver, and does not require transmitter metadata. Sign-in is unchanged either way: WS-Federation does not send OAuth scopes. Any other value raises a config error whose message is `signals must be true or false`.
 
 ```sh
-wsfed-caep generate-keys --config demo/wsfed.json
-wsfed-caep metadata --config demo/wsfed.json
+docker compose build
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD/demo:/app/demo" \
+  wsfed-caep-python-demo \
+  wsfed-caep generate-keys --config demo/wsfed.json
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD/demo:/app/demo" \
+  wsfed-caep-python-demo \
+  wsfed-caep metadata --config demo/wsfed.json
 ```
 
 The generated certificate's common name defaults to `wsfed-caep-nodejs relying party` plus the realm, cut at 64 characters.
 
 ## Tests
 
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-pytest
+```bash
+docker build --target test .
 ```
+
+The suite runs in a container.
 
 The suite includes a stub identity provider. It does not need a live iya-sts.
 
@@ -56,5 +62,5 @@ The suite includes a stub identity provider. It does not need a live iya-sts.
 Demo JSON uses `file:` paths under `demo/generated/`. Those keys are not in the tree. `"signals"` is omitted, so the receiver is on when a transmitter is configured.
 
 ```sh
-PORT=40123 python demo/app.py
+PORT=40123 docker compose up --build
 ```

@@ -19,12 +19,11 @@ Omitted or `true` means on. The resolved configuration omits `signals` in that c
 
 ## Tests
 
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-pytest
+```bash
+docker build --target test .
 ```
+
+The `test` stage runs `pip install --no-cache-dir ".[dev]" && pytest` in `python:3.11-slim`. GitHub Actions uses that command. Do not run pytest on the host. The demo image does not run the suite.
 
 Pytest covers the stub IdP (a signed SAML assertion the library accepts), replay, metadata, the self-signed certificate, the SSF poll receiver, the setup script's plan, and the demo handler. No live iya-sts.
 
