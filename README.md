@@ -37,6 +37,8 @@ docker run --rm --user "$(id -u):$(id -g)" \
 
 The generated certificate's common name defaults to `wsfed-caep-nodejs relying party` plus the realm, cut at 64 characters.
 
+**Plain http (#13).** Federation metadata from a URL and every Shared Signals transmitter call (configuration, JWKS, stream and poll) use https. A plain `http://` URL is refused before any connection unless its host is loopback (`127.0.0.0/8`, `::1`, `localhost`), because metadata carries the signing keys and Shared Signals carry SETs and the bearer token. A URL with userinfo is never loopback, and a URL with whitespace or a control character is refused. The `WsFedError` keeps the fetch's code (`metadata`, `ssf`) and names the scheme and host only. There is no opt-out. The relying party's own realm and reply URL may stay http; they are never fetched.
+
 ## Tests
 
 ```bash

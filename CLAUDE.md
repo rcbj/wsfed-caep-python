@@ -17,6 +17,8 @@ The party accepts SAML 2.0 assertions with bearer confirmation `urn:oasis:names:
 
 Omitted or `true` means on. The resolved configuration omits `signals` in that case. `false` does not start the receiver and does not require transmitter metadata. The relying party never starts the receiver itself; `SignalsReceiver` is separate. Sign-in does not change when signals are off, because WS-Federation does not send OAuth scopes. A non-boolean raises a config error: `signals must be true or false`. The shipped demo omits the key.
 
+**Plain http (#13).** `send()` in `src/wsfed_caep/http_client.py` is the one place every fetch goes through (metadata URL, SSF configuration, JWKS, stream and poll). It refuses a URL with whitespace or a control character, and plain `http://` to a host that is not loopback (`127.0.0.0/8`, `::1`, `localhost`, by `is_loopback_host()` on the urlsplit hostname), before any lookup or connection, keeping the fetch's `WsFedError` code and naming only `http://host[:port]`; userinfo is never loopback. `http.client` follows no redirect, so there is no redirect target to check. No opt-out. `tests/test_plain_http.py` covers it; `http://0.0.0.0:<port>` reaches a 127.0.0.1 listener on Linux, so its tripwire listener proves no connection is opened.
+
 ## Tests
 
 ```bash
