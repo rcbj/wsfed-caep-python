@@ -5,7 +5,7 @@ SPDX-License-Identifier: MIT
 
 # wsfed-caep
 
-Python port of the server-side WS-Federation relying party. Import `wsfed_caep`. Distribution name `wsfed-caep`. Version 0.1.0. License MIT (`LICENSE`). Publishing to PyPI is not set up. When this tree is published, `develop` and `main` are the same commit.
+Python port of the server-side WS-Federation relying party. Import `wsfed_caep`. Distribution name `wsfed-caep`. Version 0.1.0. License MIT (`LICENSE`). A pull request merged into `main` publishes the package to PyPI after the test workflow succeeds on that commit. A direct push does not. There is no API token: PyPI Trusted Publishing trades the workflow's GitHub OIDC token for a short-lived upload token, from the `pypi` environment, and PyPI holds the publisher for this repository and `publish.yml`. A version already on PyPI stays there; the next release is a new `version` in `pyproject.toml` (and `VERSION`). When this tree is published, `develop` and `main` are the same commit.
 
 ## Usage
 
