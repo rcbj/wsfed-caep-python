@@ -33,7 +33,7 @@ from wsfed_caep.ssf.session_index import DEFAULT_SUBJECT_ATTRIBUTE
 from wsfed_caep.token import WsFedLogin
 from wsfed_caep.x509util import KeyPair, create_self_signed_key_pair
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "CAEP_EVENTS",
