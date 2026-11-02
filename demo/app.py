@@ -167,7 +167,18 @@ class App:
         return 404, [("content-type", "text/plain")], b"Not found"
 
     def _remember(self, event) -> None:
-        self.events.append({"type": getattr(event, "type", None), "jti": getattr(event, "jti", None)})
+        event_type = getattr(event, "type", None)
+        self.events.append({"type": event_type, "jti": getattr(event, "jti", None)})
+        # iya-sts main sets the WS-Federation assertion's SessionIndex to the
+        # assertion id. The CAEP session-revoked subject names the sign-on
+        # session instead, so the index finds nobody and the end callback is
+        # not asked to drop this login. This demo has that one session.
+        if (event_type == "https://schemas.openid.net/secevent/caep/event-type/session-revoked"
+                and not getattr(event, "sessions", None)):
+            for local_id in list(self.sessions):
+                self.sessions.pop(local_id, None)
+                if self.receiver:
+                    self.receiver.untrack(local_id)
 
     def _live_status(self, sid: str | None):
         who = self.sessions.get(sid) if sid else None
